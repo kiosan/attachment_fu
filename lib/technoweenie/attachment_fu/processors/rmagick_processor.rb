@@ -45,11 +45,39 @@ module Technoweenie # :nodoc:
           elsif size.is_a?(String) && size =~ /^c.*$/ # Image cropping - example geometry string: c75x75
             dimensions = size[1..size.size].split("x")
             img.crop_resized!(dimensions[0].to_i, dimensions[1].to_i)
+
+          elsif size.is_a?(String) && size =~ /^f.*$/ # Image resize with proportional scaling - example geometry string: f75x75
+            dimensions = size[1..size.size].split("x")
+            thumb = scale(img, dimensions[0].to_i, dimensions[1].to_i)
+            img = Magick::Image.new(dimensions[0].to_i, dimensions[1].to_i) {
+              self.format = 'JPEG'
+              self.background_color = "#FFFFFF"
+            }
+            img.composite!(thumb, Magick::CenterGravity, Magick::OverCompositeOp)
           else
             img.change_geometry(size.to_s) { |cols, rows, image| image.resize!(cols<1 ? 1 : cols, rows<1 ? 1 : rows) }
           end
           img.strip! unless attachment_options[:keep_profile]
           temp_paths.unshift write_to_temp_file(img.to_blob)
+        end
+        
+        # Proportional scaling.
+        # Recieves Magick::Image instance and maxSize.
+        # maxSize check is applied to the axis with the biggest value.
+        def scale(img, max_size, max_top_size)
+          height, width = img.rows, img.columns
+          max_size = max_top_size if height > width
+          if (height < max_size and width < max_size)
+            return img
+          end
+          if height > width
+            new_height = max_size
+            new_width = (width * max_size).to_f / height
+          else
+            new_width = max_size
+            new_height = (height * max_size).to_f / width
+          end
+          img.scale(new_width, new_height)
         end
       end
     end
